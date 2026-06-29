@@ -1,6 +1,6 @@
 # JET ECU V1.0
 
-Firmware for a custom Engine Control Unit (ECU) designed to monitor and control a JET engine during testing. Built for the STM32 Blue Pill (STM32F103C8T6).
+Firmware for a custom Engine Control Unit (ECU) designed to monitor and control a JET engine during testing. Built for the STM32F103C8T6 (Blue Pill).
 
 ---
 
@@ -24,8 +24,8 @@ Firmware for a custom Engine Control Unit (ECU) designed to monitor and control 
 | Thermocouple 2 SO | PB14 | |
 | Thermocouple 2 CS | PB12 | |
 | Battery Voltage | PA1 | Voltage divider: 39K + 5.6K, max input ~24V |
-| RPM Test Input | PA0 | Potentiometer via op-amp — analog RPM simulation (testing only) |
-| RPM Sensor | PB11 | Signal conditioned through dual LM358 — interrupt counting (pending) |
+| RC PWM Input | PA0 | R12DS CH3 signal wire — standard 1000–2000µs PWM |
+| RPM Sensor | PC14 | Future pulse-counting input (not yet implemented) |
 | FET 1 | PB6 | |
 | FET 2 | PB5 | |
 | FET 3 | PB9 | |
@@ -63,12 +63,13 @@ Firmware for a custom Engine Control Unit (ECU) designed to monitor and control 
 - Accepts real-time toggle commands from the GUI over serial: `FET1:1` / `FET1:0`
 - Reports all 6 FET states every 200ms: `FET:1,0,0,0,0,0`
 
-### RPM — Test Mode (PA0)
-- Potentiometer output through an op-amp buffer connected to PA0
-- 12-bit ADC value mapped linearly to 0–120,000 RPM
-- 64-sample averaging for noise reduction
-- Reported every 100ms
-- To be replaced with real pulse-counting on PB11 when RPM interrupt is implemented
+### RC Throttle Input (PA0)
+- Reads standard RC PWM signal from R12DS receiver CH3 pin
+- Pulse width range: 1000–2000µs mapped to 0–100% throttle
+- Spike rejection: rejects any reading that jumps more than 400µs from last valid
+- Hold-last-valid: maintains last known value; resets to 0 only after 500ms signal loss
+- Calibration via GUI: SET RC wizard captures center and full-throttle positions
+- Reported every 200ms as `THR: xxx`
 
 ### MCU Internal Temperature
 - Reads the STM32F103 on-chip die temperature sensor (ADC channel 16)
@@ -88,7 +89,7 @@ Connect a USB-TTL adapter to PA2 (TX) and PA3 (RX) at **115200 baud**.
 JET ECU V1.0 Ready
 TC1: 245.5 C  |  TC2: 32.1 C
 Raw: 3741    V_ADC: 3.014 V    V_BATT: 24.01 V
-RPM: 17054
+THR: 75
 MCU: 24.4 C
 FET:1,0,0,0,0,0
 ```
@@ -100,6 +101,9 @@ FET:1,0,0,0,0,0
 | `FET1:1` | Turn FET 1 HIGH |
 | `FET1:0` | Turn FET 1 LOW |
 | `FET2:1` … `FET6:0` | Same for FETs 2–6 |
+| `CAL_CENTER` | Sample RC center position (hold stick at center first) |
+| `CAL_FULL` | Sample RC full throttle position (push stick to full first) |
+| `CAL_RESET` | Clear calibration — throttle returns 0 until recalibrated |
 
 ---
 
@@ -107,15 +111,16 @@ FET:1,0,0,0,0,0
 
 A Python-based ground station (`JET ECU GUI/ECU GUI.py`) connects over serial and displays all channels in real time:
 
-- Tachometer and battery voltage circular gauges
-- Vertical thermometer gauges for TC1, TC2, and MCU temperature
-- FET output panel — live status LEDs and toggle buttons (2 × 3 grid)
-- Serial log with clear button
+- **THROTTLE gauge** — RC input 0–100%
+- **TACHOMETER gauge** — RPM sensor 0–50,000 (PC14, pending implementation)
+- **Battery voltage** circular gauge
+- **Vertical thermometers** for TC1 (EGT), TC2 (Intake), and MCU temperature
+- **FET panel** — live status LEDs and toggle buttons (layout: 1/3/5 top, 2/4/6 bottom)
+- **SET RC / RESET RC** calibration buttons
+- Serial log with CLEAR button
 
 ---
 
 ## What is Pending
 
-- [ ] SBUS decoding (PA0) — read RC receiver channels (inverted UART, 100000 baud, 8E2)
-- [ ] RPM measurement (PB11) — pulse counting via external interrupt
-- [ ] Engine control state machine — Waiting → Starting → Idling → Operating → Cooldown
+- [ ] RPM sensor (PC14) — pulse counting via external interrupt, output `RPM: xxx`

@@ -2,3 +2,9 @@ __pycache__/
 *.pyc
 build/
 .vs/
+
+# Design files — kept local only, not for GitHub
+Faizan Khan Design/
+JET ECU Design Files/
+JET_ECU_Design_Detailed_Spec_V1.0.docx
+JET_ECU_Requiremnts_V1.0.docx

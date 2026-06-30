@@ -244,8 +244,8 @@ class AllFETBtn(tk.Frame):
         label = "HIGH" if high else "LOW "
         act   = "HIGH" if high else "LOW"
         tk.Button(self, text=act, bg=BORDER, fg=TEXT,
-                  font=("Consolas", 7, "bold"), relief="flat",
-                  padx=6, pady=2, cursor="hand2",
+                  font=("Consolas", 9, "bold"), relief="flat",
+                  padx=14, pady=6, cursor="hand2",
                   activebackground=color, activeforeground=WHITE,
                   command=cb).pack(side="right", padx=(0, 8), pady=4)
         led = tk.Canvas(self, width=14, height=14, bg=CARD2, highlightthickness=0)

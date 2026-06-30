@@ -1,0 +1,28 @@
+Output: Gerber Files
+Type  : Gerber
+From  : Variant [[No Variations]] of Project [JET ECU ver_2.1.PrjPcb]
+   Generated File[JET ECU ver_2.1.GTO]
+   Generated File[JET ECU ver_2.1.GTP]
+   Generated File[JET ECU ver_2.1.GTS]
+   Generated File[JET ECU ver_2.1.GTL]
+   Generated File[JET ECU ver_2.1.GBL]
+   Generated File[JET ECU ver_2.1.GBS]
+   Generated File[JET ECU ver_2.1.GBP]
+   Generated File[JET ECU ver_2.1.GBO]
+   Generated File[JET ECU ver_2.1.GM1]
+   Generated File[JET ECU ver_2.1.GM3]
+   Generated File[JET ECU ver_2.1.GM13]
+   Generated File[JET ECU ver_2.1.GM15]
+   Generated File[JET ECU ver_2.1.GPT]
+   Generated File[JET ECU ver_2.1.GPB]
+   Generated File[JET ECU ver_2.1.GD1]
+   Generated File[JET ECU ver_2.1.GG1]
+   Generated File[JET ECU ver_2.1.GM]
+   Generated File[JET ECU ver_2.1.EXTREP]
+   Generated File[JET ECU ver_2.1.REP]
+
+
+Files Generated   : 19
+Documents Printed : 0
+
+Finished Output Generation At 12:48:18 PM On 6/7/2026

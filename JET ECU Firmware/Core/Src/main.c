@@ -89,8 +89,8 @@ const osThreadAttr_t defaultTask_attributes = {
 static uint16_t adc_buf[2];
 
 /* ── RC PWM input (PA0, GPIO polling via DWT — matches Arduino pulseIn) ─── */
-static uint32_t rc_pw_min        = 0;         /* calibrated center position  */
-static uint32_t rc_pw_max        = 0;         /* calibrated full-throw pos   */
+static uint32_t rc_pw_min        = 1535U;     /* default 0 % position (µs)  */
+static uint32_t rc_pw_max        = 1950U;     /* default 100 % position (µs) */
 static uint32_t rc_last_pw       = 1500;      /* last accepted pulse width   */
 static uint32_t rc_last_valid_ms = 0;         /* kernel tick of last valid PW */
 #define RC_MAX_STEP   400U                    /* max µs jump between samples  */
@@ -851,8 +851,15 @@ void SerialRxTask(void *arg)
         for (int i = 0; cmd[i]; i++)
             if (cmd[i] == '\r' || cmd[i] == '\n') { cmd[i] = '\0'; break; }
 
-        /* FETn:v */
-        if (cmd[0]=='F' && cmd[1]=='E' && cmd[2]=='T' &&
+        /* FET_ALL:v — set all 6 FETs HIGH (v=1) or LOW (v=0) */
+        if (strncmp(cmd, "FET_ALL:", 8) == 0) {
+            GPIO_PinState st = (cmd[8] == '1') ? GPIO_PIN_SET : GPIO_PIN_RESET;
+            for (int i = 0; i < 6; i++)
+                HAL_GPIO_WritePin(GPIOB, FET_PIN[i], st);
+            uart_send(cmd[8]=='1' ? "FET_ALL:1\r\n" : "FET_ALL:0\r\n");
+        }
+        /* FETn:v — set single FET */
+        else if (cmd[0]=='F' && cmd[1]=='E' && cmd[2]=='T' &&
             cmd[3] >= '1' && cmd[3] <= '6' && cmd[4] == ':') {
             int n = cmd[3] - '1';
             HAL_GPIO_WritePin(GPIOB, FET_PIN[n],
@@ -874,7 +881,7 @@ void SerialRxTask(void *arg)
         }
         /* CAL_RESET */
         else if (strncmp(cmd, "CAL_RESET", 9) == 0) {
-            rc_pw_min = 0; rc_pw_max = 0; rc_last_pw = 1500;
+            rc_pw_min = 0U; rc_pw_max = 0U; rc_last_pw = 1500U;
             uart_send("CAL_RESET:OK\r\n");
         }
     }

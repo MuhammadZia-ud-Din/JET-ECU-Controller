@@ -198,25 +198,25 @@ class ThermometerGauge(tk.Canvas):
 
 
 class FETBtn(tk.Frame):
-    """Horizontal FET row:  LED  FET N  STATUS          [TOGGLE]"""
+    """Horizontal FET row:  LED  FET N  STATUS  [TOGGLE]"""
 
     def __init__(self, parent, n, cb, **kw):
         super().__init__(parent, bg=CARD2, **kw)
         self.n, self.state, self.cb = n, False, cb
         tk.Button(self, text="TOGGLE", bg=BORDER, fg=TEXT,
-                  font=("Consolas", 7, "bold"), relief="flat",
-                  padx=10, pady=3, cursor="hand2",
+                  font=("Consolas", 9, "bold"), relief="flat",
+                  padx=14, pady=6, cursor="hand2",
                   activebackground=ORANGE, activeforeground=WHITE,
-                  command=self._toggle).pack(side="right", padx=(0, 10), pady=8)
+                  command=self._toggle).pack(side="right", padx=(0, 8), pady=4)
         self.led = tk.Canvas(self, width=14, height=14,
                              bg=CARD2, highlightthickness=0)
-        self.led.pack(side="left", padx=(12, 5), pady=10)
+        self.led.pack(side="left", padx=(8, 4), pady=4)
         self._dot = self.led.create_oval(2, 2, 12, 12, fill=RED, outline="")
         tk.Label(self, text=f"FET {n}", bg=CARD2, fg=WHITE,
-                 font=("Consolas", 9, "bold"), width=5,
-                 anchor="w").pack(side="left")
+                 font=("Consolas", 9, "bold"),
+                 anchor="w").pack(side="left", padx=(0, 3))
         self.slbl = tk.Label(self, text="LOW", bg=CARD2, fg=RED,
-                              font=("Consolas", 8, "bold"), width=5,
+                              font=("Consolas", 8, "bold"), width=4,
                               anchor="w")
         self.slbl.pack(side="left")
 
@@ -233,6 +233,30 @@ class FETBtn(tk.Frame):
         self.led.itemconfig(self._dot, fill=GREEN if self.state else RED)
         self.slbl.config(text="HIGH" if self.state else "LOW",
                           fg=GREEN if self.state else RED)
+
+
+class AllFETBtn(tk.Frame):
+    """ALL HIGH / ALL LOW — same visual as FETBtn, fixed state."""
+
+    def __init__(self, parent, high, cb, **kw):
+        super().__init__(parent, bg=CARD2, **kw)
+        color = GREEN if high else RED
+        label = "HIGH" if high else "LOW "
+        act   = "HIGH" if high else "LOW"
+        tk.Button(self, text=act, bg=BORDER, fg=TEXT,
+                  font=("Consolas", 7, "bold"), relief="flat",
+                  padx=6, pady=2, cursor="hand2",
+                  activebackground=color, activeforeground=WHITE,
+                  command=cb).pack(side="right", padx=(0, 8), pady=4)
+        led = tk.Canvas(self, width=14, height=14, bg=CARD2, highlightthickness=0)
+        led.pack(side="left", padx=(8, 4), pady=4)
+        led.create_oval(2, 2, 12, 12, fill=color, outline="")
+        tk.Label(self, text="ALL", bg=CARD2, fg=WHITE,
+                 font=("Consolas", 9, "bold"),
+                 anchor="w").pack(side="left", padx=(0, 3))
+        tk.Label(self, text=label, bg=CARD2, fg=color,
+                 font=("Consolas", 8, "bold"), width=4,
+                 anchor="w").pack(side="left")
 
 
 class Dashboard(tk.Tk):
@@ -389,15 +413,18 @@ class Dashboard(tk.Tk):
         tk.Label(fc, text=" FET OUTPUTS", bg=CARD, fg=ACCENT,
                  font=("Consolas", 9, "bold")).pack(anchor="w", pady=(7, 4))
         fr = tk.Frame(fc, bg=CARD)
-        fr.pack(fill="x", padx=8, pady=(0, 10))
+        fr.pack(fill="x", padx=8, pady=(0, 6))
         self._fets = []
         for i in range(1, 7):
             b = FETBtn(fr, i, cb=self._send_fet)
-            b.grid(row=(i-1)%2, column=(i-1)//2, padx=4, pady=3, sticky="ew")
+            b.grid(row=(i-1)%2, column=(i-1)//2, padx=4, pady=1, sticky="ew")
             self._fets.append(b)
-        fr.columnconfigure(0, weight=1)
-        fr.columnconfigure(1, weight=1)
-        fr.columnconfigure(2, weight=1)
+        AllFETBtn(fr, high=True,  cb=self._fet_all_high).grid(
+            row=0, column=3, padx=4, pady=1, sticky="ew")
+        AllFETBtn(fr, high=False, cb=self._fet_all_low).grid(
+            row=1, column=3, padx=4, pady=1, sticky="ew")
+        for col in range(4):
+            fr.columnconfigure(col, weight=1)
 
         # ── Serial log ────────────────────────────────────────────────────────
         lc = tk.Frame(self, bg=CARD)
@@ -528,6 +555,18 @@ class Dashboard(tk.Tk):
             try: self._port.write(cmd.encode())
             except Exception: pass
         self._push(f"[CMD] {cmd.strip()}")
+
+    def _fet_all_high(self):
+        self._send_cmd("FET_ALL:1\n")
+        for fet in self._fets:
+            fet.set_state(1)
+        self._push("[CMD] FET_ALL:1")
+
+    def _fet_all_low(self):
+        self._send_cmd("FET_ALL:0\n")
+        for fet in self._fets:
+            fet.set_state(0)
+        self._push("[CMD] FET_ALL:0")
 
     # ── Throttle calibration wizard ───────────────────────────────────────────
 

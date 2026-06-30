@@ -1,0 +1,28 @@
+----------------------------------------------------------------------------------------------------------------------------------
+NCDrill File Report For: JET ECU ver_2.1.PcbDoc   6/7/2026  10:40:18 AM
+----------------------------------------------------------------------------------------------------------------------------------
+
+Layer Pair : Top Layer to Bottom Layer
+ASCII RoundHoles File : JET ECU ver_2.1.TXT
+
+Tool       Hole Size               Hole Tolerance               Hole Type       Hole Count   Plated         Tool Travel
+----------------------------------------------------------------------------------------------------------------------------------
+T1      0.7mm (28mil)                                             Round             28        PTH        235.13mm (9.26inch)
+T2      0.711mm (28mil)                                           Round             158       PTH        1734.70mm (68.30inch)
+T3      0.73mm (29mil)                                            Round             6         PTH        38.02mm (1.50inch)
+T4      0.78mm (31mil)                                            Round             8         PTH        23.18mm (0.91inch)
+T5      0.81mm (32mil)                                            Round             20        PTH        293.71mm (11.56inch)
+T6      0.9mm (35mil)                                             Round             26        PTH        227.53mm (8.96inch)
+T7      0.94mm (37mil)                                            Round             3         PTH        5.08mm (0.20inch)
+T8      1mm (39mil)                                               Round             169       PTH        1063.58mm (41.87inch)
+T9      1.092mm (43mil)                                           Round             16        PTH        94.39mm (3.72inch)
+T10     1.2mm (47mil)                                             Round             8         PTH        168.16mm (6.62inch)
+T11     1.24mm (49mil)                                            Round             3         PTH        5.08mm (0.20inch)
+T12     1.39mm (55mil)                                            Round             18        PTH        126.16mm (4.97inch)
+T13     1.52mm (60mil)                                            Round             2         PTH        15.37mm (0.61inch)
+T14     3mm (118mil)                                              Round             3         PTH        50.09mm (1.97inch)
+T15     1mm (39mil)                                               Round             1         NPTH       0.00mm (0.00inch)
+----------------------------------------------------------------------------------------------------------------------------------
+Totals                                                                              469
+
+Total Processing Time (hh:mm:ss) : 00:00:00

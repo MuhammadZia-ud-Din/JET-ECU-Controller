@@ -31,14 +31,14 @@ class GaugeCanvas(tk.Canvas):
     """Circular needle gauge — tachometer / voltmeter style."""
 
     def __init__(self, parent, size, min_val, max_val,
-                 label, unit, color_zones=None, **kw):
+                 unit, color_zones=None, **kw):
         super().__init__(parent, width=size, height=size,
                          bg=CARD, highlightthickness=0, **kw)
         self.cx = size // 2
         self.cy = size // 2
         self.R  = size // 2 - 30
         self.mn, self.mx = min_val, max_val
-        self.label, self.unit = label, unit
+        self.unit = unit
         self.zones = color_zones or []
         self._ORIG  = 225
         self._SWEEP = 270
@@ -80,13 +80,10 @@ class GaugeCanvas(tk.Canvas):
             val = self.mn + (i/10) * (self.mx - self.mn)
             lx, ly = self._pt(ang, R-30)
             s = (f"{int(val/1000)}k" if val else "0") if self.mx >= 10000 else f"{val:.0f}"
-            self.create_text(lx, ly, text=s, fill=DIM, font=("Consolas", 7))
-        self.create_text(self.cx, self.cy + int(R*0.58),
-                         text=self.label, fill=DIM,
-                         font=("Consolas", 9, "bold"))
+            self.create_text(lx, ly, text=s, fill=DIM, font=("Consolas", 8))
 
     def _update(self, value):
-        self.delete("needle"); self.delete("rdout")
+        self.delete("needle"); self.delete("digit")
         ang    = self._ang(value)
         tx, ty = self._pt(ang,       self.R - 15)
         bx, by = self._pt(ang + 180, 18)
@@ -95,14 +92,15 @@ class GaugeCanvas(tk.Canvas):
         pr = 9
         self.create_oval(self.cx-pr, self.cy-pr, self.cx+pr, self.cy+pr,
                          fill=ORANGE, outline="", tags="needle")
+
+        # Digital readout text — sits in the blank 90° wedge at the bottom of
+        # the dial (the gauge sweep + tick labels stop at ±45° from vertical,
+        # leaving this gap genuinely empty; needle tail only reaches 18px).
         vs = (f"{int(value):,}" if self.mx >= 10000
               else f"{value:.1f}" if self.mx > 30
               else f"{value:.2f}")
-        self.create_text(self.cx, self.cy - 14, text=vs, fill=WHITE,
-                         font=("Consolas", 18, "bold"), tags="rdout")
-        self.create_text(self.cx, self.cy + int(self.R * 0.36),
-                         text=self.unit, fill=ACCENT,
-                         font=("Consolas", 9, "bold"), tags="rdout")
+        self.create_text(self.cx, self.cy + int(self.R * 0.90), text=f"{vs} {self.unit}",
+                         fill=WHITE, font=("Consolas", 14, "bold"), tags="digit")
 
     def set_value(self, v): self._update(v)
 
@@ -326,9 +324,16 @@ class Dashboard(tk.Tk):
                   activebackground=RED, activeforeground=WHITE,
                   command=self._reset_rpm).pack(side="left", padx=4)
 
+        # ── Emergency stop — always visible, forces all FETs off instantly ─────
+        tk.Button(cb, text="⛔ EMERGENCY STOP", bg=RED, fg=WHITE,
+                  font=("Consolas", 9, "bold"), relief="flat",
+                  padx=14, pady=3, cursor="hand2",
+                  activebackground="#cc0022", activeforeground=WHITE,
+                  command=self._emergency_stop).pack(side="right", padx=10)
+
         # ── Instrument row ─────────────────────────────────────────────────────
-        GAUGE_H = 245
-        THERM_H = 245
+        GAUGE_H = 290
+        THERM_H = 290
 
         gr = tk.Frame(self, bg=BG)
         gr.pack(padx=20, pady=8)
@@ -340,7 +345,7 @@ class Dashboard(tk.Tk):
                  font=("Consolas", 9, "bold")).pack(pady=(8, 0))
         self._thr = GaugeCanvas(thc, size=GAUGE_H,
                                 min_val=0, max_val=100,
-                                label="THR", unit="%",
+                                unit="%",
                                 color_zones=[
                                     (0,  70,  GREEN),
                                     (70, 90,  YELLOW),
@@ -355,7 +360,7 @@ class Dashboard(tk.Tk):
                  font=("Consolas", 9, "bold")).pack(pady=(8, 0))
         self._rpm = GaugeCanvas(rc, size=GAUGE_H,
                                  min_val=0, max_val=50000,
-                                 label="RPM", unit="rev / min",
+                                 unit="RPM",
                                  color_zones=[
                                      (0,     35000,  GREEN),
                                      (35000, 45000,  YELLOW),
@@ -369,7 +374,7 @@ class Dashboard(tk.Tk):
                  font=("Consolas", 9, "bold")).pack(pady=(8, 0))
         self._volt = GaugeCanvas(vc, size=GAUGE_H,
                                   min_val=0, max_val=26,
-                                  label="VOLTS", unit="V DC",
+                                  unit="V DC",
                                   color_zones=[
                                       (0,  14,   RED),
                                       (14, 18, YELLOW),
@@ -482,8 +487,12 @@ class Dashboard(tk.Tk):
 
     def _disconnect(self):
         self._running = False
-        if self._port and self._port.is_open:
-            self._port.close()
+        if self._port:
+            try:
+                if self._port.is_open:
+                    self._port.close()
+            except Exception:
+                pass
         self._status.config(text="DISCONNECTED", fg=RED)
         self._cbtn.config(text="CONNECT", bg=GREEN, fg="#000")
         self._thr.set_value(0)
@@ -495,6 +504,13 @@ class Dashboard(tk.Tk):
         for fet in self._fets:
             fet.set_state(0)
 
+    def _connection_lost(self):
+        if not self._running:
+            return  # already torn down by an explicit DISCONNECT click
+        self._disconnect()
+        self._status.config(text="ERROR: USB-TTL disconnected", fg=RED)
+        self._push("[ERROR] Serial connection lost — USB-TTL adapter disconnected")
+
     def _reader(self):
         while self._running:
             try:
@@ -503,6 +519,7 @@ class Dashboard(tk.Tk):
                     if line:
                         self.after(0, self._parse, line)
             except Exception:
+                self.after(0, self._connection_lost)
                 break
 
     def _parse(self, line):
@@ -567,6 +584,10 @@ class Dashboard(tk.Tk):
         for fet in self._fets:
             fet.set_state(0)
         self._push("[CMD] FET_ALL:0")
+
+    def _emergency_stop(self):
+        self._fet_all_low()
+        self._push("[EMERGENCY STOP] All FET outputs forced LOW")
 
     # ── Throttle calibration wizard ───────────────────────────────────────────
 

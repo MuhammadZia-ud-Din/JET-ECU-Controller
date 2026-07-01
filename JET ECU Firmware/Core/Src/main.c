@@ -35,21 +35,27 @@
 /* USER CODE BEGIN PD */
 
 /* ── Battery voltage two-point calibration (raw ADC count based) ─────────────
-   Works directly on the averaged raw count — no intermediate formula errors.
+   Direct linear interpolation between two known (raw, voltage) points —
+   no forced "0 V" anchor, since that raw value drifts whenever the sense
+   line's ground reference changes (e.g. powering the board from the
+   battery supply vs. from USB). Anchoring on two real mid/high-range
+   measurements instead is immune to that shift.
 
-   HOW TO CALIBRATE:
-     1. Apply 0 V to battery input, wait for reading to settle.
-        Note the highest "Raw: xxxx" value seen → set VBATT_RAW_ZERO to that value + 5.
-     2. Apply a known accurate voltage (e.g. 24.00 V from a bench supply).
-        Note the "Raw: xxxx" value → set VBATT_RAW_CAL to that value.
-     3. Set VBATT_MV_CAL to the actual supply voltage in mV.
+   HOW TO RECALIBRATE (if the supply/ground path changes again):
+     1. Apply a known low voltage, note "Raw: xxxx" → LO point.
+     2. Apply a known high voltage, note "Raw: xxxx" → HI point.
+        (Use the widest voltage separation you can — it minimizes error.)
+     3. Set the four constants below from those two readings.
 
-   Values below are derived from board measurements (24-sample avg baseline ~111 raw,
-   max noise ~114 raw → VBATT_RAW_ZERO=120; 24 V point → VBATT_RAW_CAL=3923).
-   Update after reading your own "Raw:" values.                                 */
-#define VBATT_RAW_ZERO   190UL   /* raw count at 0 V actual — readings at or below → 0.00 V */
-#define VBATT_MV_CAL   24000UL   /* actual supply voltage at calibration point (mV)           */
-#define VBATT_RAW_CAL   3923UL   /* raw count at VBATT_MV_CAL actual voltage                  */
+   Board measurements (2026-07-01, direct-supply powered):
+     5.00 V → Raw 678  |  10.00 V → Raw 1447  |  20.00 V → Raw 2993  |  24.00 V → Raw 3608
+   Anchored on the 5 V / 24 V pair (widest separation); cross-checked against
+   the 10 V and 20 V points, both within ±0.02 V of measured.               */
+#define VBATT_RAW_LO     678UL   /* raw count at VBATT_MV_LO actual voltage */
+#define VBATT_MV_LO     5000UL   /* actual voltage at the low calibration point (mV) */
+#define VBATT_RAW_HI    3608UL   /* raw count at VBATT_MV_HI actual voltage */
+#define VBATT_MV_HI    24000UL   /* actual voltage at the high calibration point (mV) */
+#define VBATT_RAW_FLOOR  250UL   /* below this, treat as no battery connected → 0.00 V */
 
 /* USER CODE END PD */
 
@@ -765,25 +771,32 @@ void VoltageTask(void *arg)
     uint8_t mcu_cnt = 0;
 
     for (;;) {
-        /* 64-sample average with 1 ms between reads — matches Arduino readADC_avg().
-           Total: 64 ms sampling + osDelay(500) ≈ 564 ms per voltage report.    */
+        /* 256-sample average with 1 ms between reads — 4x the original 64-sample
+           window, which halves report-to-report ADC jitter (~sqrt(4)) without
+           adding any cross-report lag (no memory carried between reports, so a
+           real voltage change still shows up on the very next report).
+           Total: 256 ms sampling + osDelay(500) ≈ 756 ms per voltage report.  */
         uint32_t sum = 0;
-        for (uint8_t i = 0; i < 64; i++) {
+        for (uint16_t i = 0; i < 256; i++) {
             sum += adc_buf[0];
             osDelay(1);
         }
-        uint16_t raw  = (uint16_t)(sum / 64U);
+        uint16_t raw  = (uint16_t)(sum / 256U);
 
         /* V_ADC at divider output — kept for display and future diagnostics */
         uint32_t vadc = ((uint32_t)raw * 3300U) / 4095U;
 
-        /* Battery voltage via direct two-point raw-count calibration.
-           Bypasses divider formula and CAL_FACTOR — calibrated on this board.
-           raw ≤ VBATT_RAW_ZERO means noise floor → clamp to 0.              */
+        /* Battery voltage via direct two-point linear interpolation between
+           VBATT_RAW_LO/MV_LO and VBATT_RAW_HI/MV_HI (see USER CODE BEGIN PD).
+           raw ≤ VBATT_RAW_FLOOR means no battery connected → clamp to 0.    */
         uint32_t vbat = 0;
-        if (raw > VBATT_RAW_ZERO)
-            vbat = (raw - VBATT_RAW_ZERO) * VBATT_MV_CAL
-                   / (VBATT_RAW_CAL - VBATT_RAW_ZERO);
+        if (raw > VBATT_RAW_FLOOR) {
+            int32_t v = (int32_t)VBATT_MV_LO
+                      + ((int32_t)raw - (int32_t)VBATT_RAW_LO)
+                        * ((int32_t)VBATT_MV_HI - (int32_t)VBATT_MV_LO)
+                        / ((int32_t)VBATT_RAW_HI - (int32_t)VBATT_RAW_LO);
+            vbat = (v > 0) ? (uint32_t)v : 0;
+        }
 
         snprintf(buf, sizeof(buf),
                  "Raw: %u\tV_ADC: %lu.%03lu V\tV_BATT: %lu.%02lu V\r\n",

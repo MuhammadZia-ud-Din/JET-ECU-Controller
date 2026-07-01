@@ -18,7 +18,7 @@ JET ECU GUI/
 └── ECU GUI.py                       — Python dashboard GUI
 
 JET_ECU_V1.0/
-└── JET_ECU_V1.0.ino                 — Original Arduino firmware (reference only)
+└── JET_ECU_V1.0.ino                 — Arduino firmware
 ```
 
 ---
@@ -30,7 +30,7 @@ The active firmware runs on **FreeRTOS (CMSIS-RTOS v2)** with four concurrent ta
 | Task | Priority | Rate | Role |
 |------|----------|------|------|
 | ThrottleTask | AboveNormal | 200 ms | RC PWM reading, spike filter, 0–100% output |
-| VoltageTask | Normal | 500 ms | Battery voltage (64-sample avg), MCU temperature |
+| VoltageTask | Normal | ~756 ms | Battery voltage (256-sample avg), MCU temperature |
 | FETReportTask | Normal | 200 ms | Reports all 6 FET states over serial |
 | SerialRxTask | High | Event | Parses incoming commands from GUI |
 
@@ -41,11 +41,11 @@ Built with **STM32CubeIDE**. All user code is inside `USER CODE BEGIN / END` sec
 ## Features
 
 - **Dual thermocouple monitoring** — EGT (exhaust) and intake temperature via MAX31855
-- **Battery voltage** — 12-bit ADC, 64-sample averaging, two-point raw-count calibration, up to 26V
+- **Battery voltage** — 12-bit ADC, 256-sample averaging, two-point linear calibration (5V/24V anchors), up to 26V
 - **RC throttle input** — GPIO pulseIn via DWT counter, default calibration 1540–2000 µs → 0–100%
 - **6-channel FET control** — Toggle individual FETs or use ALL HIGH / ALL LOW group control
 - **MCU temperature** — On-chip die temperature sensor
-- **Python GUI** — Live gauges, 2×4 FET panel, RC calibration wizard, serial log
+- **Python GUI** — Live gauges with in-dial digital readout, Emergency Stop, USB-TTL disconnect detection, 2×4 FET panel, RC calibration wizard, serial log
 
 ---
 

@@ -331,16 +331,22 @@ class Dashboard(tk.Tk):
                   activebackground="#cc0022", activeforeground=WHITE,
                   command=self._emergency_stop).pack(side="right", padx=10)
 
-        # ── Instrument row ─────────────────────────────────────────────────────
+        # ── Main layout: left 2×2 gauge grid, right stacked panel ──────────────
         GAUGE_H = 290
-        THERM_H = 290
+        THERM_H = 225
 
-        gr = tk.Frame(self, bg=BG)
-        gr.pack(padx=20, pady=8)
+        main = tk.Frame(self, bg=BG)
+        main.pack(fill="x", padx=20, pady=8)
 
+        left_col  = tk.Frame(main, bg=BG)
+        left_col.pack(side="left", anchor="n")
+        right_col = tk.Frame(main, bg=BG)
+        right_col.pack(side="left", anchor="n", padx=(12, 0), fill="both", expand=True)
+
+        # ── Left column: 2×2 gauges — THR/TACH top row, PWM/VOLT bottom row ────
         # Throttle — RC receiver input (0–100 %)
-        thc = tk.Frame(gr, bg=CARD)
-        thc.grid(row=0, column=0, padx=(0, 6))
+        thc = tk.Frame(left_col, bg=CARD)
+        thc.grid(row=0, column=0, padx=(0, 6), pady=(0, 6))
         tk.Label(thc, text="THROTTLE", bg=CARD, fg=ACCENT,
                  font=("Consolas", 9, "bold")).pack(pady=(8, 0))
         self._thr = GaugeCanvas(thc, size=GAUGE_H,
@@ -354,8 +360,8 @@ class Dashboard(tk.Tk):
         self._thr.pack(padx=10, pady=(4, 10))
 
         # Tachometer — RPM sensor on PC14
-        rc = tk.Frame(gr, bg=CARD)
-        rc.grid(row=0, column=1, padx=6)
+        rc = tk.Frame(left_col, bg=CARD)
+        rc.grid(row=0, column=1, padx=(6, 0), pady=(0, 6))
         tk.Label(rc, text="TACHOMETER", bg=CARD, fg=ACCENT,
                  font=("Consolas", 9, "bold")).pack(pady=(8, 0))
         self._rpm = GaugeCanvas(rc, size=GAUGE_H,
@@ -368,8 +374,24 @@ class Dashboard(tk.Tk):
                                  ])
         self._rpm.pack(padx=10, pady=(4, 10))
 
-        vc = tk.Frame(gr, bg=CARD)
-        vc.grid(row=0, column=2, padx=6)
+        # ESC PWM output — throttle % mapped 1:1 onto the 1000–2000 µs ESC pulse
+        pc = tk.Frame(left_col, bg=CARD)
+        pc.grid(row=1, column=0, padx=(0, 6))
+        tk.Label(pc, text="ESC PWM OUTPUT", bg=CARD, fg=ACCENT,
+                 font=("Consolas", 9, "bold")).pack(pady=(8, 0))
+        self._pwm = GaugeCanvas(pc, size=GAUGE_H,
+                                 min_val=0, max_val=100,
+                                 unit="%",
+                                 color_zones=[
+                                     (0,  70,  GREEN),
+                                     (70, 90,  YELLOW),
+                                     (90, 100, RED),
+                                 ])
+        self._pwm.pack(padx=10, pady=(4, 10))
+
+        # Battery voltage
+        vc = tk.Frame(left_col, bg=CARD)
+        vc.grid(row=1, column=1, padx=(6, 0))
         tk.Label(vc, text="BATTERY VOLTAGE", bg=CARD, fg=ACCENT,
                  font=("Consolas", 9, "bold")).pack(pady=(8, 0))
         self._volt = GaugeCanvas(vc, size=GAUGE_H,
@@ -382,39 +404,49 @@ class Dashboard(tk.Tk):
                                   ])
         self._volt.pack(padx=10, pady=(4, 10))
 
-        t1c = tk.Frame(gr, bg=CARD)
-        t1c.grid(row=0, column=3, padx=6)
+        # ── Right column: temp graphs / FET panel / serial log, stacked ────────
+        # tgc is a plain (non-card) wrapper — each thermometer keeps its own
+        # bordered CARD box, and the three columns are weighted equally so
+        # they justify across the full row width with no empty gap on the right.
+        tgc = tk.Frame(right_col, bg=BG)
+        tgc.pack(fill="x", pady=(0, 8))
+        tgc.columnconfigure(0, weight=1)
+        tgc.columnconfigure(1, weight=1)
+        tgc.columnconfigure(2, weight=1)
+
+        t1c = tk.Frame(tgc, bg=CARD)
+        t1c.grid(row=0, column=0, sticky="nsew", padx=(0, 4))
         tk.Label(t1c, text="EXHAUST / EGT", bg=CARD, fg=ACCENT,
                  font=("Consolas", 9, "bold")).pack(pady=(8, 0))
         self._tc1 = ThermometerGauge(t1c, height=THERM_H,
                                       min_val=0, max_val=900,
                                       label="TC1", unit="°C",
                                       warn_val=700, crit_val=850)
-        self._tc1.pack(padx=14, pady=(4, 10))
+        self._tc1.pack(padx=10, pady=(4, 10))
 
-        t2c = tk.Frame(gr, bg=CARD)
-        t2c.grid(row=0, column=4, padx=6)
+        t2c = tk.Frame(tgc, bg=CARD)
+        t2c.grid(row=0, column=1, sticky="nsew", padx=4)
         tk.Label(t2c, text="INTAKE / AMBIENT", bg=CARD, fg=ACCENT,
                  font=("Consolas", 9, "bold")).pack(pady=(8, 0))
         self._tc2 = ThermometerGauge(t2c, height=THERM_H,
                                       min_val=0, max_val=100,
                                       label="TC2", unit="°C",
                                       warn_val=60, crit_val=85)
-        self._tc2.pack(padx=14, pady=(4, 10))
+        self._tc2.pack(padx=10, pady=(4, 10))
 
-        mc = tk.Frame(gr, bg=CARD)
-        mc.grid(row=0, column=5, padx=(6, 0))
+        mc = tk.Frame(tgc, bg=CARD)
+        mc.grid(row=0, column=2, sticky="nsew", padx=(4, 0))
         tk.Label(mc, text="MCU TEMP", bg=CARD, fg=ACCENT,
                  font=("Consolas", 9, "bold")).pack(pady=(8, 0))
         self._mcu = ThermometerGauge(mc, height=THERM_H,
                                       min_val=-20, max_val=100,
                                       label="MCU", unit="°C",
                                       warn_val=70, crit_val=85)
-        self._mcu.pack(padx=14, pady=(4, 10))
+        self._mcu.pack(padx=10, pady=(4, 10))
 
-        # ── FET panel ─────────────────────────────────────────────────────────
-        fc = tk.Frame(self, bg=CARD)
-        fc.pack(fill="x", padx=20, pady=(0, 8))
+        # FET panel — 4 rows × 2 columns: FET1/FET2, FET3/FET4, FET5/FET6, ALL HIGH/ALL LOW
+        fc = tk.Frame(right_col, bg=CARD)
+        fc.pack(fill="x", pady=(0, 8))
         tk.Label(fc, text=" FET OUTPUTS", bg=CARD, fg=ACCENT,
                  font=("Consolas", 9, "bold")).pack(anchor="w", pady=(7, 4))
         fr = tk.Frame(fc, bg=CARD)
@@ -422,18 +454,18 @@ class Dashboard(tk.Tk):
         self._fets = []
         for i in range(1, 7):
             b = FETBtn(fr, i, cb=self._send_fet)
-            b.grid(row=(i-1)%2, column=(i-1)//2, padx=4, pady=1, sticky="ew")
+            b.grid(row=(i-1)//2, column=(i-1)%2, padx=4, pady=1, sticky="ew")
             self._fets.append(b)
         AllFETBtn(fr, high=True,  cb=self._fet_all_high).grid(
-            row=0, column=3, padx=4, pady=1, sticky="ew")
+            row=3, column=0, padx=4, pady=1, sticky="ew")
         AllFETBtn(fr, high=False, cb=self._fet_all_low).grid(
-            row=1, column=3, padx=4, pady=1, sticky="ew")
-        for col in range(4):
+            row=3, column=1, padx=4, pady=1, sticky="ew")
+        for col in range(2):
             fr.columnconfigure(col, weight=1)
 
-        # ── Serial log ────────────────────────────────────────────────────────
-        lc = tk.Frame(self, bg=CARD)
-        lc.pack(fill="x", padx=20, pady=(0, 14))
+        # Serial log — confined to the right column's width, not the full window
+        lc = tk.Frame(right_col, bg=CARD)
+        lc.pack(fill="both", expand=True)
         log_hdr = tk.Frame(lc, bg=CARD)
         log_hdr.pack(fill="x")
         tk.Label(log_hdr, text=" SERIAL LOG", bg=CARD, fg=ACCENT,
@@ -443,10 +475,10 @@ class Dashboard(tk.Tk):
                   padx=10, pady=2, cursor="hand2",
                   activebackground=RED, activeforeground=WHITE,
                   command=self._clear_log).pack(side="right", padx=8, pady=4)
-        self._log = tk.Text(lc, height=8, bg="#060c16", fg=GREEN,
-                            font=("Consolas", 9), relief="flat",
+        self._log = tk.Text(lc, height=7, bg="#060c16", fg=GREEN,
+                            font=("Consolas", 9), relief="flat", wrap="word",
                             state="disabled", insertbackground=GREEN)
-        self._log.pack(fill="x", padx=8, pady=(0, 8))
+        self._log.pack(fill="both", expand=True, padx=8, pady=(0, 8))
 
         # ── Combobox style ─────────────────────────────────────────────────────
         sty = ttk.Style()
@@ -497,6 +529,7 @@ class Dashboard(tk.Tk):
         self._cbtn.config(text="CONNECT", bg=GREEN, fg="#000")
         self._thr.set_value(0)
         self._rpm.set_value(0)
+        self._pwm.set_value(0)
         self._volt.set_value(0)
         self._tc1.set_value(0)
         self._tc2.set_value(0)
@@ -554,6 +587,9 @@ class Dashboard(tk.Tk):
         m = re.search(r"\bTHR:\s*(\d+)", line)
         if m:
             self._thr.set_value(int(m.group(1)))
+        m = re.search(r"\bPWM:\s*(\d+)", line)
+        if m:
+            self._pwm.set_value(int(m.group(1)))
         m = re.search(r"\bRPM:\s*(\d+)", line)
         if m:
             self._rpm.set_value(int(m.group(1)))

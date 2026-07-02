@@ -47,13 +47,12 @@
         (Use the widest voltage separation you can — it minimizes error.)
      3. Set the four constants below from those two readings.
 
-   Board measurements (2026-07-01, direct-supply powered):
-     5.00 V → Raw 678  |  10.00 V → Raw 1447  |  20.00 V → Raw 2993  |  24.00 V → Raw 3608
-   Anchored on the 5 V / 24 V pair (widest separation); cross-checked against
-   the 10 V and 20 V points, both within ±0.02 V of measured.               */
-#define VBATT_RAW_LO     678UL   /* raw count at VBATT_MV_LO actual voltage */
+   Board measurements (2026-07-02, direct-supply powered, re-checked):
+     5.00 V → Raw 770  |  24.00 V → Raw 3710
+   Anchored on the widest available separation (5 V / 24 V).                */
+#define VBATT_RAW_LO     770UL   /* raw count at VBATT_MV_LO actual voltage */
 #define VBATT_MV_LO     5000UL   /* actual voltage at the low calibration point (mV) */
-#define VBATT_RAW_HI    3608UL   /* raw count at VBATT_MV_HI actual voltage */
+#define VBATT_RAW_HI    3710UL   /* raw count at VBATT_MV_HI actual voltage */
 #define VBATT_MV_HI    24000UL   /* actual voltage at the high calibration point (mV) */
 #define VBATT_RAW_FLOOR  250UL   /* below this, treat as no battery connected → 0.00 V */
 
@@ -198,6 +197,13 @@ int main(void)
   CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
   DWT->CYCCNT = 0;
   DWT->CTRL  |= DWT_CTRL_CYCCNTENA_Msk;
+
+  /* ESC PWM output — TIM1_CH3 (PA10), 1 MHz counter (PSC=63, ARR=19999)
+     gives a 20 ms (50 Hz) period with the CCR value directly in µs, so it
+     matches the standard 1000–2000 µs RC/ESC pulse convention. Starts at
+     1000 µs (0 % throttle / ESC armed-and-idle) before the RTOS takes over. */
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
+  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, 1000U);
 
   /* Start UART2 RX DMA with IDLE detection — fires callback on each command  */
   HAL_UARTEx_ReceiveToIdle_DMA(&huart2, rx_dma_buf, RX_BUF_SIZE);
@@ -748,6 +754,14 @@ void ThrottleTask(void *arg)
 
         snprintf(buf, sizeof(buf), "THR: %lu\r\n", thr);
         uart_send(buf);
+
+        /* ESC PWM output — throttle % mapped directly to the 1000–2000 µs
+           RC/ESC pulse convention (0 % = 1000 µs, 100 % = 2000 µs).        */
+        uint32_t pwm_us = 1000U + (thr * 1000U) / 100U;
+        __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_3, pwm_us);
+        snprintf(buf, sizeof(buf), "PWM: %lu\r\n", thr);
+        uart_send(buf);
+
         osDelay(200);
     }
 }
